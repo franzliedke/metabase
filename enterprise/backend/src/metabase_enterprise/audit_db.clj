@@ -3,6 +3,7 @@
    [babashka.fs :as fs]
    [clojure.core :as c]
    [clojure.java.io :as io]
+   [clojure.pprint :as pp]
    [clojure.string :as str]
    [metabase-enterprise.internal-user :as ee.internal-user]
    [metabase-enterprise.serialization.cmd :as serialization.cmd]
@@ -217,9 +218,23 @@
              (ia-content->plugins)
              (log/info "Loading Analytics Content from: plugins/instance_analytics")
              ;; The EE token might not have :serialization enabled, but audit features should still be able to use it.
-             (let [report (serialization.cmd/v2-load-internal "plugins/instance_analytics" {} :token-check? false)]
-               (if (not-empty (:errors report))
-                 (log/info (str "Error Loading Analytics Content: " (pr-str report)))
-                 (log/info (str "Loading Analytics Content Complete (" (count (:seen report)) ") entities loaded."))))
+             (let [report (try (serialization.cmd/v2-load-internal "plugins/instance_analytics" {} :token-check? false)
+                               (catch Exception e
+                                 (log/fatal (str "Error Loading Analytics Content:\n"
+                                                 (with-out-str (pp/pprint
+                                                                {:error (ex-message (ex-cause e))
+                                                                 :message (:errors (ex-data (ex-cause e)))
+                                                                 :long-message (ex-message e)
+                                                                 :rebuilt-path (:rebuilt-path (ex-data e))}))))))]
+               (log/info (str "Loading Analytics Content Complete (" (count (:seen report)) ") entities loaded.")))
              (when-let [audit-db (t2/select-one :model/Database :is_audit true)]
                (adjust-audit-db-to-host! audit-db)))))))))
+
+
+;; example error message:
+;; 2023-11-02 15:58:06,485 FATAL metabase-enterprise.audit-db :: Error Loading Analytics Content:
+;; {:error "Collection name cannot be blank!",
+;;  :message {:name "cannot be blank"},
+;;  :long-message
+;;  "Failed to load into database for [#ordered/map ([:model \"Collection\"] [:id \"okNLSZKdSxaoG58JSQY54\"])]",
+;;  :rebuilt-path [{:model "Collection", :id "okNLSZKdSxaoG58JSQY54", :label "custom_reports"}]}
