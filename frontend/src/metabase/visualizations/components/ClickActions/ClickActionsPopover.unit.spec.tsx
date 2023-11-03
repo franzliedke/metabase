@@ -14,10 +14,13 @@ import {
   createOrdersQuantityDatasetColumn,
   createOrdersSubtotalDatasetColumn,
   createOrdersTableDatasetColumns,
+  createOrdersTableDatasetColumnsMap,
   createOrdersTotalDatasetColumn,
   createOrdersUserIdDatasetColumn,
   ORDERS,
   ORDERS_ID,
+  PEOPLE,
+  PEOPLE_ID,
   SAMPLE_DB_ID,
 } from "metabase-types/api/mocks/presets";
 import { ClickActionsPopover } from "metabase/visualizations/components/ClickActions/ClickActionsPopover";
@@ -32,6 +35,7 @@ import type {
 import registerVisualizations from "metabase/visualizations/register";
 import { POPOVER_TEST_ID } from "metabase/visualizations/click-actions/actions/ColumnFormattingAction/ColumnFormattingAction";
 import { createMockSingleSeries } from "metabase-types/api/mocks";
+import { ZOOM_IN_ROW } from "metabase/query_builder/actions";
 import type { ClickObject } from "metabase-lib/queries/drills/types";
 import { DEFAULT_QUERY, SAMPLE_METADATA } from "metabase-lib/test-helpers";
 import Question from "metabase-lib/Question";
@@ -42,6 +46,7 @@ registerVisualizations();
 
 const ORDERS_DATASET_QUERY = DEFAULT_QUERY as StructuredDatasetQuery;
 const ORDERS_COLUMNS = createOrdersTableDatasetColumns();
+const ORDERS_COLUMNS_MAP = createOrdersTableDatasetColumnsMap();
 const ORDERS_ROW_VALUES = {
   ID: "3",
   USER_ID: "1",
@@ -588,6 +593,100 @@ describe("ClickActionsPopover", function () {
         },
       );
     });
+
+    describe("ObjectDetailZoomDrill", () => {
+      it.each([
+        {
+          column: createOrdersTotalDatasetColumn(),
+          columnName: createOrdersTotalDatasetColumn().name,
+          cellValue: ORDERS_ROW_VALUES.TOTAL,
+          expectedAction: {
+            type: ZOOM_IN_ROW,
+            payload: { objectId: ORDERS_ROW_VALUES.ID },
+          },
+        },
+      ])(
+        "should apply drill on $columnName cell click",
+        async ({ column, cellValue, expectedAction }) => {
+          const { props } = await setup({
+            clicked: {
+              column,
+              value: cellValue,
+              data: ORDERS_COLUMNS.map(column => ({
+                col: ORDERS_COLUMNS_MAP[
+                  column.name as keyof typeof ORDERS_ROW_VALUES
+                ],
+                value:
+                  ORDERS_ROW_VALUES[
+                    column.name as keyof typeof ORDERS_ROW_VALUES
+                  ],
+              })),
+            },
+          });
+
+          const drill = screen.getByText("View details");
+          expect(drill).toBeInTheDocument();
+
+          userEvent.click(drill);
+
+          expect(props.dispatch).toHaveBeenCalledTimes(3);
+          expect(props.dispatch).toHaveBeenCalledWith(expectedAction);
+        },
+      );
+    });
+
+    describe("ObjectDetailFkDrill", () => {
+      it.each([
+        {
+          column: createOrdersUserIdDatasetColumn(),
+          columnName: createOrdersUserIdDatasetColumn().name,
+          cellValue: ORDERS_ROW_VALUES.USER_ID,
+          expectedCard: {
+            dataset_query: {
+              database: SAMPLE_DB_ID,
+              query: {
+                filter: [
+                  "=",
+                  [
+                    "field",
+                    PEOPLE.ID,
+                    {
+                      "base-type": "type/BigInteger",
+                    },
+                  ],
+                  ORDERS_ROW_VALUES.USER_ID,
+                ],
+                "source-table": PEOPLE_ID,
+              },
+              type: "query",
+            },
+            display: "table",
+          },
+        },
+      ])(
+        "should apply drill on $columnName cell click",
+        async ({ column, cellValue, expectedCard }) => {
+          const { props } = await setup({
+            clicked: {
+              column,
+              value: cellValue,
+            },
+          });
+
+          const drill = screen.getByText("View details");
+          expect(drill).toBeInTheDocument();
+
+          userEvent.click(drill);
+
+          expect(props.onChangeCardAndRun).toHaveBeenCalledTimes(1);
+          expect(props.onChangeCardAndRun).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+              nextCard: expect.objectContaining(expectedCard),
+            }),
+          );
+        },
+      );
+    });
   });
 });
 
@@ -622,9 +721,7 @@ async function setup({
   };
 
   const clickActions = mode.actionsForClick(
-    {
-      ...clicked,
-    },
+    clicked,
     settings,
   ) as RegularClickAction[];
 
@@ -664,6 +761,12 @@ async function setup({
       onClose={onClose}
     />,
   );
+
+  dispatch.mockImplementation(fn => {
+    if (Object.prototype.toString.call(fn) === "[object Function]") {
+      return fn(dispatch, view.store.getState);
+    }
+  });
 
   const updatedClicked = {
     ...clicked,
