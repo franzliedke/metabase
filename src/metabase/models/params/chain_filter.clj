@@ -70,6 +70,8 @@
    [metabase.db.query :as mdb.query]
    [metabase.db.util :as mdb.u]
    [metabase.driver.common.parameters.dates :as params.dates]
+   [metabase.mbql.normalize :as mbql.normalize]
+   [metabase.mbql.schema :as mbql.s]
    [metabase.mbql.util :as mbql.u]
    [metabase.models :refer [Field FieldValues Table]]
    [metabase.models.field :as field]
@@ -79,6 +81,7 @@
    [metabase.models.params.field-values :as params.field-values]
    [metabase.models.table :as table]
    [metabase.query-processor :as qp]
+   [metabase.query-processor.util :as qp.util]
    [metabase.types :as types]
    [metabase.util :as u]
    [metabase.util.i18n :refer [tru]]
@@ -698,6 +701,109 @@
 
      :else
      (unremapped-chain-filter-search field constraints query options))))
+
+;;; ------------------ Top-level API for api.dashboard -------------------------
+
+(def ^:const result-limit
+  "How many results to return when chain filtering"
+  1000)
+
+(defn- get-template-tag
+  "Fetch the `:field` clause from `dashcard` referenced by `:template-tag`.
+
+    (get-template-tag [:template-tag :company] some-dashcard) ; -> [:field 100 nil]"
+  [dimension card]
+  (when-let [[_ tag] (mbql.u/check-clause :template-tag dimension)]
+    (get-in card [:dataset_query :native :template-tags (u/qualified-name tag)])))
+
+(defn- param-type->op [type]
+  (if (get-in mbql.s/parameter-types [type :operator])
+    (keyword (name type))
+    :=))
+
+(defn- reverse-join [join]
+  {:rhs (:lhs join)
+   :lhs (:rhs join)})
+
+(mu/defn ^:private param->fields
+  [{:keys [mappings] :as param} :- mbql.s/Parameter top-level?]
+  (for [{:keys [target] {:keys [card]} :dashcard} mappings
+        :let  [[_ dimension] (->> (mbql.normalize/normalize-tokens target :ignore-path)
+                                  (mbql.u/check-clause :dimension))]
+        :when dimension
+        :let  [ttag         (get-template-tag dimension card)
+               dimension    (condp mbql.u/is-clause? dimension
+                              :field        dimension
+                              :template-tag (:dimension ttag)
+                              (log/error "cannot handle this dimension" {:dimension dimension}))
+               [id options] (or
+                             ;; Get the field id from the field-clause if it contains it. This is the common case
+                             ;; for mbql queries.
+                             (mbql.u/match-one dimension [:field (id :guard integer?) options] [id options])
+                             ;; Attempt to get the field clause from the model metadata corresponding to the field.
+                             ;; This is the common case for native queries in which mappings from original columns
+                             ;; have been performed using model metadata.
+                             ((juxt :id #(nth (:field_ref %) 2))
+                              (qp.util/field->field-info dimension (:result_metadata card))))]
+        :when id
+        :let [query     (-> card :dataset_query :query)
+              join      (when (:join-alias options)
+                          (u/seek= :alias (:join-alias options) (:joins query)))
+              ;;[lhs rhs] (mbql.u/match (:condition join) [:field (id :guard integer?) _] id)
+              [[_ lhs _] [_ rhs _]] (filter #(mbql.u/is-clause? :field %) (:condition join))]]
+    {:field-id id
+     :op       (param-type->op (:type param))
+     :options  (merge (:options ttag)
+                      (:options param))
+     :value    nil
+     :join     (when join
+                 (cond-> {:lhs {:table (:source-table query) :field lhs}
+                          :rhs {:table (:source-table join) :field rhs}}
+                   ;; when it's a parameter we're looking for, we need a reverse join
+                   top-level? reverse-join))}))
+
+(mu/defn ^:private chain-filter-constraints :- Constraints
+  [dashboard constraint-param-key->value]
+  (vec (for [[param-key value] constraint-param-key->value
+             :let              [param (get-in dashboard [:resolved-params param-key])]
+             :when             param
+             field             (param->fields param false)]
+         (assoc field :value value))))
+
+(mu/defn dashboard-chain-filter :- ms/FieldValuesResult
+  "C H A I N filters!
+
+  Used to query for values that populate chained filter dropdowns and text search boxes."
+  ([dashboard param-key constraint-param-key->value]
+   (chain-filter dashboard param-key constraint-param-key->value nil))
+
+  ([dashboard                   :- ms/Map
+    param-key                   :- ms/NonBlankString
+    constraint-param-key->value :- ms/Map
+    query                       :- [:maybe ms/NonBlankString]]
+   (let [dashboard   (t2/hydrate dashboard :resolved-params)
+         constraints (chain-filter-constraints dashboard constraint-param-key->value)
+         param       (get-in dashboard [:resolved-params param-key])
+         fields      (param->fields param true)]
+     (when (empty? fields)
+       (throw (ex-info (tru "Parameter {0} does not have any Fields associated with it" (pr-str param-key))
+                       {:param       (get (:resolved-params dashboard) param-key)
+                        :status-code 400})))
+     ;; TODO - we should combine these all into a single UNION ALL query against the data warehouse instead of doing a
+     ;; separate query for each Field (for parameters that are mapped to more than one Field)
+     (let [results         (map (if (seq query)
+                                  #(chain-filter-search % constraints query :limit result-limit)
+                                  #(chain-filter % constraints :limit result-limit))
+                                fields)
+           values          (distinct (mapcat :values results))
+           has_more_values (boolean (some true? (map :has_more_values results)))]
+       ;; results can come back as [[v] ...] *or* as [[orig remapped] ...]. Sort by remapped value if it's there
+       {:values          (cond->> values
+                           (seq values)
+                           (sort-by (case (count (first values))
+                                      2 second
+                                      1 first)))
+        :has_more_values has_more_values}))))
 
 ;;; ------------------ Filterable Field IDs (powers GET /api/dashboard/params/valid-filter-fields) -------------------
 

@@ -2951,9 +2951,9 @@
       (let [dashboard (t2/hydrate dashboard :resolved-params)]
         (testing "Should correctly retrieve fields"
           (is (=? [{:op := :options nil}]
-                  (#'api.dashboard/param->fields (get-in dashboard [:resolved-params "_CATEGORY_NAME_"]) false)))
+                  (#'chain-filter/param->fields (get-in dashboard [:resolved-params "_CATEGORY_NAME_"]) false)))
           (is (=? [{:op :contains :options {:case-sensitive false}}]
-                  (#'api.dashboard/param->fields (get-in dashboard [:resolved-params "_CATEGORY_CONTAINS_"]) false))))))))
+                  (#'chain-filter/param->fields (get-in dashboard [:resolved-params "_CATEGORY_CONTAINS_"]) false))))))))
 
 (deftest chain-filter-constraints-test
   (testing "chain-filter-constraints"
@@ -2961,19 +2961,19 @@
       (let [dashboard (t2/hydrate dashboard :resolved-params)]
         (testing "Should return correct constraints with =/!="
           (is (=? [{:op := :value "ood" :options nil}]
-                  (#'api.dashboard/chain-filter-constraints dashboard {"_CATEGORY_NAME_" "ood"})))
+                  (#'chain-filter/chain-filter-constraints dashboard {"_CATEGORY_NAME_" "ood"})))
           (is (=? [{:op :!= :value "ood" :options nil}]
-                  (#'api.dashboard/chain-filter-constraints dashboard {"_NOT_CATEGORY_NAME_" "ood"}))))
+                  (#'chain-filter/chain-filter-constraints dashboard {"_NOT_CATEGORY_NAME_" "ood"}))))
         (testing "Should return correct constraints with a few filters"
           (is (=? [{:op := :value "foo" :options nil}
                    {:op :!= :value "bar" :options nil}
                    {:op :contains :value "buzz" :options {:case-sensitive false}}]
-                  (#'api.dashboard/chain-filter-constraints dashboard {"_CATEGORY_NAME_"     "foo"
+                  (#'chain-filter/chain-filter-constraints dashboard {"_CATEGORY_NAME_"     "foo"
                                                                        "_NOT_CATEGORY_NAME_" "bar"
                                                                        "_CATEGORY_CONTAINS_" "buzz"}))))
         (testing "Should ignore incorrect/unknown filters"
           (is (= []
-                 (#'api.dashboard/chain-filter-constraints dashboard {"qqq" "www"}))))))))
+                 (#'chain-filter/chain-filter-constraints dashboard {"qqq" "www"}))))))))
 
 (defn- card-fields-from-table-metadata
   [card-id]
@@ -2997,7 +2997,7 @@
   (testing "fallback to chain-filter"
     (let [mock-chain-filter-result {:has_more_values true
                                     :values [["chain-filter"]]}]
-      (with-redefs [api.dashboard/chain-filter (constantly mock-chain-filter-result)]
+      (with-redefs [chain-filter/dashboard-chain-filter (constantly mock-chain-filter-result)]
         (testing "if value-field not found in source card"
           (mt/with-temp [Card       {card-id :id} {}
                          Dashboard  dashboard     {:parameters    [{:id                   "abc"
@@ -3825,7 +3825,7 @@
                        :op       :=
                        :options  nil
                        :value    nil}]
-                     (#'api.dashboard/param->fields (get-in dashboard [:resolved-params "sender"]) false)))
+                     (#'chain-filter/param->fields (get-in dashboard [:resolved-params "sender"]) false)))
               (testing "Top-level should have reverse join going on"
                 (is (= [{:field-id %users.name
                          :join     {:lhs {:table $$users :field %users.id}
@@ -3833,7 +3833,7 @@
                          :op       :=
                          :options  nil
                          :value    nil}]
-                       (#'api.dashboard/param->fields (get-in dashboard [:resolved-params "receiver"]) true)))))))
+                       (#'chain-filter/param->fields (get-in dashboard [:resolved-params "receiver"]) true)))))))
         (testing "GET /api/dashboard/:id/params/:param-key/values"
           (mt/let-url [url (chain-filter-values-url dashboard "receiver")]
             (is (= {:values [["Annie Albatross"] ["Bob the Sea Gull"] ["Brenda Blackbird"]]

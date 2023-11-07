@@ -17,13 +17,13 @@
         (testing "values"
           (is (= {:values          [["African"] ["American"]]
                   :has_more_values false}
-                 (mt/$ids (chain-filter/chain-filter %categories.name nil))))
+                 (mt/$ids (chain-filter/chain-filter {:field-id %categories.name} nil))))
           (is (= 1 (t2/count FieldValues :field_id (mt/id :categories :name) :type :sandbox))))
 
         (testing "search"
           (is (= {:values          [["African"] ["American"]]
                   :has_more_values false}
-                 (mt/$ids (chain-filter/chain-filter-search %categories.name nil "a")))))
+                 (mt/$ids (chain-filter/chain-filter-search {:field-id %categories.name} nil "a")))))
 
         (testing "When chain-filter with constraints"
           (testing "creates a linked-filter FieldValues if not sandboxed"
@@ -32,13 +32,13 @@
                       api/*current-user-permissions-set* (atom #{"/"})]
               (is (= {:values          [["Artisan"]]
                       :has_more_values false}
-                     (mt/$ids (chain-filter/chain-filter %categories.name
+                     (mt/$ids (chain-filter/chain-filter {:field-id %categories.name}
                                                          [{:field-id %categories.id :op := :value 3}])))))
             (is (= 1 (t2/count FieldValues :field_id (mt/id :categories :name) :type :linked-filter))))
 
           (testing "creates another linked-filter FieldValues if  sandboxed"
             (is (= {:values          []
                     :has_more_values false}
-                   (mt/$ids (chain-filter/chain-filter %categories.name
+                   (mt/$ids (chain-filter/chain-filter {:field-id %categories.name}
                                                        [{:field-id %categories.id :op := :value 3}]))))
             (is (= 2 (t2/count FieldValues :field_id (mt/id :categories :name) :type :linked-filter)))))))))
