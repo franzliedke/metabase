@@ -73,8 +73,8 @@
   (case fv-type
     :linked-filter
     (do
-      (classloader/require 'metabase.models.params.chain-filter)
-      (let [{:keys [values has_more_values]} (cache-fn)
+      (assert cache-fn "Linked filters should pass `cache-fn` to execute the fetch")
+      (let [{:keys [values has_more_values]} (cache-fn field)
             ;; we have a hard limit for how many values we want to store in FieldValues,
             ;; let's make sure we respect that limit here.
             ;; For a more detailed docs on this limt check out [[field-values/distinct-values]]
@@ -125,10 +125,11 @@
 (defn get-or-create-advanced-field-values!
   "Fetch an Advanced FieldValues with type `fv-type` for a `field`, creating them if needed.
   If the fetched FieldValues is expired, we delete them then try to create it."
-  ([fv-type field cache-fn]
-   (get-or-create-advanced-field-values! fv-type field nil cache-fn))
+  ([fv-type field]
+   (get-or-create-advanced-field-values! fv-type field nil))
 
-  ([fv-type field constraints cache-fn]
+  ;; constraints and cache-fn used for :linked-filter
+  ([fv-type field {:keys [constraints cache-fn] :as opts}]
    (let [hash-key (hash-key-for-advanced-field-values fv-type (:id field) constraints)
          fv       (or (t2/select-one FieldValues :field_id (:id field)
                                      :type fv-type
@@ -140,7 +141,7 @@
        ;; If it's expired, delete then try to re-create it
        (field-values/advanced-field-values-expired? fv) (do
                                                           (t2/delete! FieldValues :id (:id fv))
-                                                          (recur fv-type field constraints cache-fn))
+                                                          (recur fv-type field opts))
        :else fv))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -175,6 +176,6 @@
     {:values           [[value]]
      :field_id         field-id
      :has_field_values boolean}"
-  [field constraints cache-fn]
-  (-> (get-or-create-advanced-field-values! :linked-filter field constraints cache-fn)
+  [field opts]
+  (-> (get-or-create-advanced-field-values! :linked-filter field opts)
       (postprocess-field-values field)))
