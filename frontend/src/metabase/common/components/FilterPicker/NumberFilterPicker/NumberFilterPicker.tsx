@@ -130,7 +130,7 @@ function NumberValueInput({
       <Flex p="md">
         <NumberInput
           value={values[0]}
-          onChange={(newValue: number) => onChange([newValue])}
+          onChange={newValue => onChange([newValue])}
           placeholder={placeholder}
           autoFocus
           w="100%"
@@ -144,14 +144,14 @@ function NumberValueInput({
       <Flex align="center" justify="center" p="md">
         <NumberInput
           value={values[0]}
-          onChange={(newValue: number) => onChange([newValue, values[1]])}
+          onChange={newValue => onChange([newValue, values[1]])}
           placeholder={placeholder}
           autoFocus
         />
         <Text mx="sm">{t`and`}</Text>
         <NumberInput
           value={values[1]}
-          onChange={(newValue: number) => onChange([values[0], newValue])}
+          onChange={newValue => onChange([values[0], newValue])}
           placeholder={placeholder}
         />
       </Flex>
