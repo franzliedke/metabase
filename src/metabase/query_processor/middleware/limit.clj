@@ -28,13 +28,13 @@
   "Given a `query`, return the max rows that should be returned, or `nil` if no limit should be applied.
   If a limit should be applied, this is the first non-nil value from (in decreasing priority order):
 
-  1. the value of the [[metabase.query-processor.middleware.constraints/max-results-bare-rows]] setting, which allows
+  1. the value of the [[metabase.query-processor.middleware.constraints/max-unaggregated-query-row-limit]] setting, which allows
      for database-local override
   2. the output of [[metabase.mbql.util/query->max-rows-limit]] when called on the given query
   3. [[metabase.query-processor.interface/absolute-max-results]] (a constant, non-nil backstop value)"
   [query]
   (when-not (disable-max-results? query)
-    (or (qp.constraints/max-results-bare-rows)
+    (or (qp.constraints/max-unaggregated-query-row-limit)
         (mbql.u/query->max-rows-limit query)
         qp.i/absolute-max-results)))
 
