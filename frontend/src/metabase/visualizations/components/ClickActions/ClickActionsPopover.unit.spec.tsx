@@ -12,6 +12,7 @@ import {
   createOrdersIdDatasetColumn,
   createOrdersProductIdDatasetColumn,
   createOrdersQuantityDatasetColumn,
+  createOrdersSubtotalDatasetColumn,
   createOrdersTableDatasetColumns,
   createOrdersTotalDatasetColumn,
   createOrdersUserIdDatasetColumn,
@@ -25,7 +26,6 @@ import { getMode } from "metabase/visualizations/click-actions/lib/modes";
 import { checkNotNull } from "metabase/lib/types";
 import type {
   DatasetQuery,
-  Filter,
   Series,
   StructuredDatasetQuery,
 } from "metabase-types/api";
@@ -236,6 +236,199 @@ describe("ClickActionsPopover", function () {
       );
     });
 
+    describe("SummarizeColumnDrill", () => {
+      it.each([
+        {
+          column: createOrdersIdDatasetColumn(),
+          columnName: createOrdersIdDatasetColumn().name,
+          buttonText: "Distinct values",
+          expectedCard: {
+            database: SAMPLE_DB_ID,
+            query: {
+              aggregation: [
+                [
+                  "distinct",
+                  [
+                    "field",
+                    ORDERS.ID,
+                    {
+                      "base-type": "type/Integer",
+                    },
+                  ],
+                ],
+              ],
+              "source-table": ORDERS_ID,
+            },
+            type: "query",
+          },
+        },
+        {
+          column: createOrdersSubtotalDatasetColumn(),
+          columnName: createOrdersSubtotalDatasetColumn().name,
+          buttonText: "Distinct values",
+          expectedCard: {
+            database: SAMPLE_DB_ID,
+            query: {
+              aggregation: [
+                [
+                  "distinct",
+                  [
+                    "field",
+                    ORDERS.SUBTOTAL,
+                    {
+                      "base-type": "type/Float",
+                    },
+                  ],
+                ],
+              ],
+              "source-table": ORDERS_ID,
+            },
+            type: "query",
+          },
+        },
+        {
+          column: createOrdersCreatedAtDatasetColumn(),
+          columnName: createOrdersCreatedAtDatasetColumn().name,
+          buttonText: "Distinct values",
+          expectedCard: {
+            database: SAMPLE_DB_ID,
+            query: {
+              aggregation: [
+                [
+                  "distinct",
+                  [
+                    "field",
+                    ORDERS.CREATED_AT,
+                    {
+                      "base-type": "type/DateTime",
+                    },
+                  ],
+                ],
+              ],
+              "source-table": ORDERS_ID,
+            },
+            type: "query",
+          },
+        },
+      ])(
+        "should apply drill to default ORDERS question on $columnName header click",
+        async ({ column, buttonText, expectedCard }) => {
+          const { props } = await setup({
+            clicked: {
+              column,
+              value: undefined,
+            },
+          });
+
+          const drill = screen.getByText(buttonText);
+          expect(drill).toBeInTheDocument();
+
+          userEvent.click(drill);
+
+          expect(props.onChangeCardAndRun).toHaveBeenCalledTimes(1);
+          expect(props.onChangeCardAndRun).toHaveBeenLastCalledWith({
+            nextCard: expect.objectContaining({
+              dataset_query: expect.objectContaining(expectedCard),
+            }),
+          });
+        },
+      );
+    });
+
+    describe("DistributionDrill", () => {
+      it.each([
+        {
+          column: createOrdersUserIdDatasetColumn(),
+          columnName: createOrdersUserIdDatasetColumn().name,
+          expectedCard: {
+            database: SAMPLE_DB_ID,
+            query: {
+              aggregation: [["count"]],
+              breakout: [
+                [
+                  "field",
+                  ORDERS.USER_ID,
+                  {
+                    "base-type": "type/Integer",
+                  },
+                ],
+              ],
+              "source-table": ORDERS_ID,
+            },
+            type: "query",
+          },
+        },
+        {
+          column: createOrdersSubtotalDatasetColumn(),
+          columnName: createOrdersSubtotalDatasetColumn().name,
+          expectedCard: {
+            database: SAMPLE_DB_ID,
+            query: {
+              aggregation: [["count"]],
+              breakout: [
+                [
+                  "field",
+                  ORDERS.SUBTOTAL,
+                  {
+                    "base-type": "type/Float",
+                    binning: {
+                      strategy: "default",
+                    },
+                  },
+                ],
+              ],
+              "source-table": ORDERS_ID,
+            },
+            type: "query",
+          },
+        },
+        {
+          column: createOrdersCreatedAtDatasetColumn(),
+          columnName: createOrdersCreatedAtDatasetColumn().name,
+          expectedCard: {
+            database: SAMPLE_DB_ID,
+            query: {
+              aggregation: [["count"]],
+              breakout: [
+                [
+                  "field",
+                  ORDERS.CREATED_AT,
+                  {
+                    "base-type": "type/DateTime",
+                    "temporal-unit": "month",
+                  },
+                ],
+              ],
+              "source-table": ORDERS_ID,
+            },
+            type: "query",
+          },
+        },
+      ])(
+        "should apply drill to default ORDERS question on $columnName header click",
+        async ({ column, expectedCard }) => {
+          const { props } = await setup({
+            clicked: {
+              column,
+              value: undefined,
+            },
+          });
+
+          const drill = screen.getByText("Distribution");
+          expect(drill).toBeInTheDocument();
+
+          userEvent.click(drill);
+
+          expect(props.onChangeCardAndRun).toHaveBeenCalledTimes(1);
+          expect(props.onChangeCardAndRun).toHaveBeenLastCalledWith({
+            nextCard: expect.objectContaining({
+              dataset_query: expect.objectContaining(expectedCard),
+            }),
+          });
+        },
+      );
+    });
+
     describe("FKFilterDrill", () => {
       it.each([
         {
@@ -297,12 +490,24 @@ describe("ClickActionsPopover", function () {
           cellValue: ORDERS_ROW_VALUES.TOTAL,
           drillTitle: ">",
           expectedCard: {
-            dataset_query: getQuickFilterResultDatasetQuery({
-              filteredColumnId: ORDERS.TOTAL,
-              filterOperator: ">",
-              filterColumnType: "type/Float",
-              cellValue: ORDERS_ROW_VALUES.TOTAL,
-            }),
+            dataset_query: {
+              database: SAMPLE_DB_ID,
+              query: {
+                filter: [
+                  ">",
+                  [
+                    "field",
+                    ORDERS.TOTAL,
+                    {
+                      "base-type": "type/Float",
+                    },
+                  ],
+                  ORDERS_ROW_VALUES.TOTAL,
+                ],
+                "source-table": ORDERS_ID,
+              },
+              type: "query",
+            },
             display: "table",
           },
         },
@@ -313,12 +518,22 @@ describe("ClickActionsPopover", function () {
           cellValue: ORDERS_ROW_VALUES.CREATED_AT,
           drillTitle: "Before",
           expectedCard: {
-            dataset_query: getQuickFilterResultDatasetQuery({
-              filteredColumnId: ORDERS.CREATED_AT,
-              filterOperator: "<",
-              filterColumnType: "type/DateTime",
-              cellValue: ORDERS_ROW_VALUES.CREATED_AT,
-            }),
+            dataset_query: {
+              database: SAMPLE_DB_ID,
+              query: {
+                filter: [
+                  "<",
+                  [
+                    "field",
+                    ORDERS.CREATED_AT,
+                    { "base-type": "type/DateTime" },
+                  ],
+                  ORDERS_ROW_VALUES.CREATED_AT,
+                ],
+                "source-table": ORDERS_ID,
+              },
+              type: "query",
+            },
             display: "table",
           },
         },
@@ -329,12 +544,23 @@ describe("ClickActionsPopover", function () {
           cellValue: null,
           drillTitle: "=",
           expectedCard: {
-            dataset_query: getQuickFilterResultDatasetQuery({
-              filteredColumnId: ORDERS.DISCOUNT,
-              filterOperator: "is-null",
-              filterColumnType: "type/Float",
-              cellValue: null,
-            }),
+            dataset_query: {
+              database: SAMPLE_DB_ID,
+              query: {
+                filter: [
+                  "is-null",
+                  [
+                    "field",
+                    ORDERS.DISCOUNT,
+                    {
+                      "base-type": "type/Float",
+                    },
+                  ],
+                ],
+                "source-table": ORDERS_ID,
+              },
+              type: "query",
+            },
             display: "table",
           },
         },
@@ -530,38 +756,6 @@ function getFKFilteredResultDatasetQuery(
         ],
         cellValue,
       ],
-      "source-table": ORDERS_ID,
-    },
-    type: "query",
-  };
-}
-
-function getQuickFilterResultDatasetQuery({
-  filteredColumnId,
-  filterOperator,
-  filterColumnType,
-  cellValue,
-}: {
-  filteredColumnId: number;
-  filterOperator: "=" | "!=" | ">" | "<" | "is-null" | "not-null";
-  filterColumnType: string;
-  cellValue: string | number | null | undefined;
-}): DatasetQuery {
-  const filterClause = ["is-null", "not-null"].includes(filterOperator)
-    ? ([
-        filterOperator,
-        ["field", filteredColumnId, { "base-type": filterColumnType }],
-      ] as Filter)
-    : ([
-        filterOperator,
-        ["field", filteredColumnId, { "base-type": filterColumnType }],
-        cellValue,
-      ] as Filter);
-
-  return {
-    database: SAMPLE_DB_ID,
-    query: {
-      filter: filterClause,
       "source-table": ORDERS_ID,
     },
     type: "query",
