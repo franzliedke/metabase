@@ -49,7 +49,7 @@ export function NumberFilterPicker({
     getDefaultValues(operator, filterParts?.values),
   );
 
-  const { valueCount } = OPERATOR_OPTIONS[operator] ?? {};
+  const { valueCount } = OPERATOR_OPTIONS[operator];
   const isValid = hasValidValues(operator, values);
 
   const handleOperatorChange = (operator: Lib.NumberFilterOperatorName) => {
