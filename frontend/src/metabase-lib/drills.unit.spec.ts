@@ -2313,6 +2313,7 @@ describe("drillThru", () => {
       //     ],
       //   },
       // },
+      // FIXME: using quick-filter on a custom column produces incorrect query due to to expression conversion to a field (metabase#34957)
       {
         drillType: "drill-thru/quick-filter",
         clickType: "cell",
@@ -2324,7 +2325,7 @@ describe("drillThru", () => {
           filter: [
             ">",
             [
-              "field",
+              "expression",
               "CustomColumn",
               {
                 "base-type": "type/Integer",
