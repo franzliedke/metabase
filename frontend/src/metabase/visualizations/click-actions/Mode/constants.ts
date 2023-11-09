@@ -32,7 +32,7 @@ export const DRILL_TYPE_TO_HANDLER_MAP: Record<
 > = {
   "drill-thru/column-filter": null, // ColumnFilterDrill,
   "drill-thru/quick-filter": QuickFilterDrill,
-  "drill-thru/pk": null, // PKDetailsDrill,
+  "drill-thru/pk": ObjectDetailFkDrill,
   "drill-thru/zoom": ObjectDetailZoomDrill,
   "drill-thru/fk-details": ObjectDetailFkDrill,
   "drill-thru/pivot": null,

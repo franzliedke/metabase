@@ -7,10 +7,7 @@ import type {
 
 import type Question from "metabase-lib/Question";
 import type { ObjectDetailDrillType } from "metabase-lib/queries/drills/object-detail-drill";
-import {
-  objectDetailDrill,
-  objectDetailPKDrillQuestion,
-} from "metabase-lib/queries/drills/object-detail-drill";
+import { objectDetailDrill } from "metabase-lib/queries/drills/object-detail-drill";
 
 function getAction({
   question,
@@ -24,12 +21,6 @@ function getAction({
   objectId: RowValue;
 }) {
   switch (type) {
-    case "pk":
-      return {
-        question: () =>
-          objectDetailPKDrillQuestion({ question, column, objectId }),
-      };
-
     case "dashboard":
       return { question: () => question };
   }
