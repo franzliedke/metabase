@@ -10,7 +10,6 @@ import type { FilterPickerWidgetProps } from "../types";
 import { getAvailableOperatorOptions } from "../utils";
 import { OPTIONS } from "./constants";
 import { getFilterClause, getOptionType } from "./utils";
-import type { OptionType } from "./types";
 
 export function BooleanFilterPicker({
   query,
@@ -40,8 +39,11 @@ export function BooleanFilterPicker({
     return isExpanded ? options : options.filter(option => !option.isAdvanced);
   }, [options, isExpanded]);
 
-  const handleOptionChange = (type: string) => {
-    setOptionType(type as OptionType);
+  const handleOptionChange = (value: string) => {
+    const option = visibleOptions.find(option => option.type === value);
+    if (option) {
+      setOptionType(option.type);
+    }
   };
 
   const handleSubmit = (event: FormEvent) => {
