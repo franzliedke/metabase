@@ -17,8 +17,8 @@
    [metabase.types :as types]
    [metabase.util :as u]
    [metabase.util.i18n :refer [trs tru]]
-   [metabase.util.ui-logic :as ui-logic]
-   [schema.core :as s])
+   [schema.core :as s]
+   [toucan2.core :as t2])
   (:import
    (java.text DecimalFormat DecimalFormatSymbols)))
 
@@ -471,6 +471,21 @@
                                 :width   :100%})
            :src   (:image-src image-bundle)}]]})
 
+(defn dashcard-timeline-events
+  "Look for a timeline and corresponding events associated with this dashcard."
+  [{{:keys [collection_id] :as _card} :card}]
+  (let [{timeline-id :id :as timeline} (t2/select-one :model/Timeline
+                                                      :collection_id collection_id
+                                                      :archived false)]
+    (assoc timeline :events (t2/select :model/TimelineEvent :timeline_id timeline-id))))
+
+(defn- add-dashcard-timeline-events
+  "If there's a timeline associated with this card, add it in."
+  [card-with-data]
+  (if-some [timeline-events (dashcard-timeline-events card-with-data)]
+    (assoc card-with-data :timeline timeline-events)
+    card-with-data))
+
 (s/defmethod render :isomorphic :- common/RenderedPulseCard
    [_
     render-type
@@ -479,9 +494,12 @@
     {dashcard-viz-settings :visualization_settings :as dashcard}
     data]
    (let [combined-cards-results    (pu/execute-multi-card card dashcard)
-         cards-with-data (map (fn [c d] {:card c :data d})
-                              (cons card (map :card combined-cards-results))
-                              (cons data (map #(get-in % [:result :data]) combined-cards-results)))
+         cards-with-data           (map
+                                     (comp
+                                       add-dashcard-timeline-events
+                                       (fn [c d] {:card c :data d}))
+                                     (cons card (map :card combined-cards-results))
+                                     (cons data (map #(get-in % [:result :data]) combined-cards-results)))
          dashcard-viz-settings     (or
                                      dashcard-viz-settings
                                      card-viz-settings)
