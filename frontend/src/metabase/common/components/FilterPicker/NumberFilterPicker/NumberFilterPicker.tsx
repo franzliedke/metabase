@@ -14,7 +14,7 @@ import { FilterOperatorPicker } from "../FilterOperatorPicker";
 import { FlexWithScroll } from "../FilterPicker.styled";
 
 import { OPERATOR_OPTIONS } from "./constants";
-import { isFilterValid } from "./utils";
+import { getDefaultValues, hasValidValues } from "./utils";
 
 export function NumberFilterPicker({
   query,
@@ -25,10 +25,15 @@ export function NumberFilterPicker({
   onChange,
   onBack,
 }: FilterPickerWidgetProps) {
-  const columnName = Lib.displayInfo(query, stageIndex, column).longDisplayName;
-  const filterParts = filter
-    ? Lib.numberFilterParts(query, stageIndex, filter)
-    : null;
+  const columnInfo = useMemo(
+    () => Lib.displayInfo(query, stageIndex, column),
+    [query, stageIndex, column],
+  );
+
+  const filterParts = useMemo(
+    () => (filter ? Lib.numberFilterParts(query, stageIndex, filter) : null),
+    [query, stageIndex, filter],
+  );
 
   const availableOperators = useMemo(
     () =>
@@ -36,42 +41,32 @@ export function NumberFilterPicker({
     [query, stageIndex, column],
   );
 
-  const [operatorName, setOperatorName] = useState(
-    filterParts?.operator ?? "=",
+  const [operator, setOperator] = useState(
+    filterParts ? filterParts.operator : "=",
   );
 
-  const [values, setValues] = useState(filterParts?.values ?? []);
-
-  const { valueCount = 0 } = OPERATOR_OPTIONS[operatorName] ?? {};
-
-  const isValid = useMemo(
-    () => isFilterValid(operatorName, values),
-    [operatorName, values],
+  const [values, setValues] = useState(
+    getDefaultValues(operator, filterParts?.values),
   );
 
-  const handleOperatorChange = (
-    nextOperatorName: Lib.NumberFilterOperatorName,
-  ) => {
-    const nextOption = OPERATOR_OPTIONS[nextOperatorName];
-    const nextValues = values.slice(0, nextOption.valueCount);
-    setOperatorName(nextOperatorName);
-    setValues(nextValues);
-  };
+  const { valueCount } = OPERATOR_OPTIONS[operator] ?? {};
+  const isValid = hasValidValues(operator, values);
 
-  const handleFilterChange = () => {
-    onChange(
-      Lib.numberFilterClause({
-        operator: operatorName,
-        column,
-        values,
-      }),
-    );
+  const handleOperatorChange = (operator: Lib.NumberFilterOperatorName) => {
+    setOperator(operator);
+    setValues(getDefaultValues(operator, values));
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (isValid) {
-      handleFilterChange();
+      onChange(
+        Lib.numberFilterClause({
+          operator: operator,
+          column,
+          values,
+        }),
+      );
     }
   };
 
@@ -82,9 +77,9 @@ export function NumberFilterPicker({
       data-testid="number-filter-picker"
       onSubmit={handleSubmit}
     >
-      <FilterHeader columnName={columnName} onBack={onBack}>
+      <FilterHeader columnName={columnInfo.longDisplayName} onBack={onBack}>
         <FilterOperatorPicker
-          value={operatorName}
+          value={operator}
           options={availableOperators}
           onChange={handleOperatorChange}
         />
@@ -103,10 +98,10 @@ export function NumberFilterPicker({
 }
 
 interface NumberValueInputProps {
-  values: number[];
-  valueCount: number;
+  values: (number | "")[];
+  valueCount: number | undefined;
   column: Lib.ColumnMetadata;
-  onChange: (values: number[]) => void;
+  onChange: (values: (number | "")[]) => void;
 }
 
 function NumberValueInput({
@@ -117,48 +112,51 @@ function NumberValueInput({
 }: NumberValueInputProps) {
   const placeholder = t`Enter a number`;
 
-  switch (valueCount) {
-    case Infinity:
-      return (
-        <FlexWithScroll p="md" mah={300}>
-          <ColumnValuesWidget
-            value={values}
-            column={column}
-            canHaveManyValues
-            onChange={onChange}
-          />
-        </FlexWithScroll>
-      );
-    case 1:
-      return (
-        <Flex p="md">
-          <NumberInput
-            value={values[0]}
-            onChange={(newValue: number) => onChange([newValue])}
-            placeholder={placeholder}
-            autoFocus
-            w="100%"
-          />
-        </Flex>
-      );
-    case 2:
-      return (
-        <Flex align="center" justify="center" p="md">
-          <NumberInput
-            value={values[0]}
-            onChange={(newValue: number) => onChange([newValue, values[1]])}
-            placeholder={placeholder}
-            autoFocus
-          />
-          <Text mx="sm">{t`and`}</Text>
-          <NumberInput
-            value={values[1]}
-            onChange={(newValue: number) => onChange([values[0], newValue])}
-            placeholder={placeholder}
-          />
-        </Flex>
-      );
-    default:
-      return null;
+  if (valueCount == null) {
+    return (
+      <FlexWithScroll p="md" mah={300}>
+        <ColumnValuesWidget
+          value={values}
+          column={column}
+          canHaveManyValues
+          onChange={onChange}
+        />
+      </FlexWithScroll>
+    );
   }
+
+  if (valueCount === 1) {
+    return (
+      <Flex p="md">
+        <NumberInput
+          value={values[0]}
+          onChange={(newValue: number) => onChange([newValue])}
+          placeholder={placeholder}
+          autoFocus
+          w="100%"
+        />
+      </Flex>
+    );
+  }
+
+  if (valueCount === 2) {
+    return (
+      <Flex align="center" justify="center" p="md">
+        <NumberInput
+          value={values[0]}
+          onChange={(newValue: number) => onChange([newValue, values[1]])}
+          placeholder={placeholder}
+          autoFocus
+        />
+        <Text mx="sm">{t`and`}</Text>
+        <NumberInput
+          value={values[1]}
+          onChange={(newValue: number) => onChange([values[0], newValue])}
+          placeholder={placeholder}
+        />
+      </Flex>
+    );
+  }
+
+  return null;
 }

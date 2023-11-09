@@ -15,7 +15,7 @@ import { FilterOperatorPicker } from "../FilterOperatorPicker";
 import { FlexWithScroll } from "../FilterPicker.styled";
 
 import { OPERATOR_OPTIONS } from "./constants";
-import { getDefaultValues, isFilterValid } from "./utils";
+import { getDefaultValues, hasValidValues } from "./utils";
 
 const MAX_HEIGHT = 300;
 
@@ -56,29 +56,25 @@ export function StringFilterPicker({
     filterParts ? filterParts.options : {},
   );
 
-  const operatorOption = OPERATOR_OPTIONS[operator];
-  const isValid = isFilterValid(operator, values);
+  const { valueCount, hasCaseSensitiveOption } = OPERATOR_OPTIONS[operator];
+  const isValid = hasValidValues(operator, values);
 
   const handleOperatorChange = (operator: Lib.StringFilterOperatorName) => {
     setOperator(operator);
     setValues(getDefaultValues(operator));
   };
 
-  const handleFilterChange = () => {
-    onChange(
-      Lib.stringFilterClause({
-        operator,
-        column,
-        values,
-        options,
-      }),
-    );
-  };
-
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (isValid) {
-      handleFilterChange();
+      onChange(
+        Lib.stringFilterClause({
+          operator,
+          column,
+          values,
+          options,
+        }),
+      );
     }
   };
 
@@ -97,18 +93,18 @@ export function StringFilterPicker({
         />
       </FilterHeader>
       <Box>
-        {operatorOption.valueCount !== 0 && (
+        {valueCount !== 0 && (
           <FlexWithScroll p="md" mah={MAX_HEIGHT}>
             <ColumnValuesWidget
               column={column}
               value={values}
-              canHaveManyValues={!Number.isFinite(operatorOption.valueCount)}
+              canHaveManyValues={valueCount == null}
               onChange={setValues}
             />
           </FlexWithScroll>
         )}
         <FilterFooter isNew={isNew} canSubmit={isValid}>
-          {operatorOption.hasCaseSensitiveOption && (
+          {hasCaseSensitiveOption && (
             <CaseSensitiveOption
               value={options["case-sensitive"] ?? false}
               onChange={newValue => setOptions({ "case-sensitive": newValue })}

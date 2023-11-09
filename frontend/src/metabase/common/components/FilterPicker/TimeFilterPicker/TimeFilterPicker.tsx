@@ -47,7 +47,7 @@ export function TimeFilterPicker({
     getDefaultValues(operator, filterParts?.values),
   );
 
-  const operatorOption = OPERATOR_OPTIONS[operator];
+  const { valueCount } = OPERATOR_OPTIONS[operator];
 
   const handleOperatorChange = (operator: Lib.TimeFilterOperatorName) => {
     setOperator(operator);
@@ -84,11 +84,11 @@ export function TimeFilterPicker({
         />
       </FilterHeader>
       <Box>
-        {operatorOption.valueCount > 0 && (
+        {valueCount > 0 && (
           <Flex p="md">
             <ValuesInput
               values={values}
-              valueCount={operatorOption.valueCount}
+              valueCount={valueCount}
               onChange={setValues}
             />
           </Flex>

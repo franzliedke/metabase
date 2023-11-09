@@ -13,5 +13,5 @@ type NumberPickerOperator =
 
 export interface OperatorOption
   extends PickerOperatorOption<NumberPickerOperator> {
-  valueCount: number;
+  valueCount?: number;
 }

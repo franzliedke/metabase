@@ -1,21 +1,21 @@
-import type { NumberFilterOperatorName } from "metabase-lib/types";
+import type * as Lib from "metabase-lib";
 import { OPERATOR_OPTIONS } from "./constants";
 
-export function isFilterValid(
-  operatorName: NumberFilterOperatorName,
-  values: number[],
-) {
-  const option = OPERATOR_OPTIONS[operatorName];
-  if (!option) {
-    return false;
-  }
+export function getDefaultValues(
+  operator: Lib.NumberFilterOperatorName,
+  values: (number | "")[] = [],
+): (number | "")[] {
+  const { valueCount = values.length } = OPERATOR_OPTIONS[operator];
 
-  const { valueCount } = option;
-  const filledValues = values.filter(
-    value => typeof value === "number" && Number.isFinite(value),
-  );
+  return Array(valueCount)
+    .fill("")
+    .map((value, index) => values[index] ?? value);
+}
 
-  return Number.isFinite(valueCount)
-    ? filledValues.length === valueCount
-    : filledValues.length >= 1;
+export function hasValidValues(
+  operator: Lib.NumberFilterOperatorName,
+  values: (number | "")[],
+): values is number[] {
+  const { valueCount = 1 } = OPERATOR_OPTIONS[operator];
+  return values.length >= valueCount && values.every(value => value !== "");
 }

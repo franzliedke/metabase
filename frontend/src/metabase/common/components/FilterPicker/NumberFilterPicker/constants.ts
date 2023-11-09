@@ -3,11 +3,9 @@ import type { OperatorOption } from "./types";
 export const OPERATOR_OPTIONS: Record<string, OperatorOption> = {
   "=": {
     operator: "=",
-    valueCount: Infinity,
   },
   "!=": {
     operator: "!=",
-    valueCount: Infinity,
   },
   ">": {
     operator: ">",
