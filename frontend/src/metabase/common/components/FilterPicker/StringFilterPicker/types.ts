@@ -12,6 +12,6 @@ type StringPickerOperator =
 
 export interface OperatorOption
   extends PickerOperatorOption<StringPickerOperator> {
-  valueCount: number;
+  valueCount?: number;
   hasCaseSensitiveOption?: boolean;
 }
