@@ -4,7 +4,6 @@ import type { AxisBaseOptionCommon } from "echarts/types/src/coord/axisCommonTyp
 import type { CartesianAxisOption } from "echarts/types/src/coord/cartesian/AxisModel";
 import type {
   ComputedVisualizationSettings,
-  RemappingHydratedDatasetColumn,
   RenderingContext,
 } from "metabase/visualizations/types";
 import type {
@@ -12,41 +11,30 @@ import type {
   Extent,
 } from "metabase/visualizations/echarts/cartesian/model/types";
 
+import type {
+  AxesFormatters,
+  AxisFormatter,
+  AxisRange,
+} from "metabase/visualizations/echarts/cartesian/option/types";
+import { CHART_STYLE } from "metabase/visualizations/echarts/cartesian/option/style";
+import {
+  getXAxisNameGap,
+  getYAxisNameGap,
+} from "metabase/visualizations/echarts/cartesian/option/layout";
 import { isNumeric } from "metabase-lib/types/utils/isa";
-
-type AxisRange = {
-  min?: number;
-  max?: number;
-};
 
 const NORMALIZED_RANGE = { min: 0, max: 1 };
 
 const getCustomAxisRange = (
-  extents: Extent[],
+  axisExtent: Extent,
   min: number | undefined,
   max: number | undefined,
 ) => {
-  if (extents.length === 0) {
-    return { min: undefined, max: undefined };
-  }
-
-  const [combinedMin, combinedMax] = extents.reduce(
-    (combinedExtent, extent) => {
-      if (!combinedExtent) {
-        return extent;
-      }
-
-      return [
-        Math.min(combinedExtent[0], extent[0]),
-        Math.max(combinedExtent[1], extent[1]),
-      ];
-    },
-  );
-
+  const [extentMin, extentMax] = axisExtent;
   // if min/max are not specified or within series extents return `undefined`
   // so that ECharts compute a rounded range automatically
-  const finalMin = min != null && min < combinedMin ? min : undefined;
-  const finalMax = max != null && max > combinedMax ? max : undefined;
+  const finalMin = min != null && min < extentMin ? min : undefined;
+  const finalMax = max != null && max > extentMax ? max : undefined;
 
   return { min: finalMin, max: finalMax };
 };
@@ -66,19 +54,11 @@ const getAxisRanges = (
   const customMin = settings["graph.y_axis.min"];
   const customMax = settings["graph.y_axis.max"];
 
-  const [left, right] = chartModel.yAxisSplit;
+  const [left, right] = chartModel.yAxisExtents;
 
   return [
-    getCustomAxisRange(
-      left.map(dataKey => chartModel.extents[dataKey]),
-      customMin,
-      customMax,
-    ),
-    getCustomAxisRange(
-      right.map(dataKey => chartModel.extents[dataKey]),
-      customMin,
-      customMax,
-    ),
+    left != null ? getCustomAxisRange(left, customMin, customMax) : {},
+    right != null ? getCustomAxisRange(right, customMin, customMax) : {},
   ];
 };
 
@@ -92,8 +72,8 @@ const getAxisNameDefaultOption = (
   nameLocation: "middle",
   nameTextStyle: {
     color: getColor("text-dark"),
-    fontSize: 14,
-    fontWeight: 900,
+    fontSize: CHART_STYLE.axisName.size,
+    fontWeight: CHART_STYLE.axisName.weight,
     fontFamily,
   },
 });
@@ -102,8 +82,8 @@ const getTicksDefaultOption = ({ getColor, fontFamily }: RenderingContext) => {
   return {
     hideOverlap: true,
     color: getColor("text-dark"),
-    fontSize: 12,
-    fontWeight: 900,
+    fontSize: CHART_STYLE.axisTicks.size,
+    fontWeight: CHART_STYLE.axisTicks.weight,
     fontFamily,
   };
 };
@@ -120,29 +100,40 @@ export const getXAxisType = (settings: ComputedVisualizationSettings) => {
   }
 };
 
+export const getRotateAngle = (settings: ComputedVisualizationSettings) => {
+  switch (settings["graph.x_axis.axis_enabled"]) {
+    case "rotate-45":
+      return 45;
+    case "rotate-90":
+      return 90;
+    default:
+      return undefined;
+  }
+};
+
 export const buildDimensionAxis = (
+  chartModel: CartesianChartModel,
   settings: ComputedVisualizationSettings,
-  column: RemappingHydratedDatasetColumn,
+  formatter: AxisFormatter,
   renderingContext: RenderingContext,
 ): CartesianAxisOption => {
   const { getColor } = renderingContext;
   const axisType = getXAxisType(settings);
 
-  const formatter = (value: unknown) => {
-    return renderingContext.formatValue(value, {
-      column,
-      ...(settings.column?.(column) ?? {}),
-      jsx: false,
-    });
-  };
-
   const boundaryGap =
     axisType === "value" ? undefined : ([0.02, 0.02] as [number, number]);
+
+  const nameGap = getXAxisNameGap(
+    chartModel,
+    settings,
+    formatter,
+    renderingContext,
+  );
 
   return {
     ...getAxisNameDefaultOption(
       renderingContext,
-      24, // TODO: compute
+      nameGap,
       settings["graph.x_axis.title_text"],
     ),
     axisTick: {
@@ -154,6 +145,8 @@ export const buildDimensionAxis = (
     },
     type: axisType,
     axisLabel: {
+      show: !!settings["graph.x_axis.axis_enabled"],
+      rotate: getRotateAngle(settings),
       ...getTicksDefaultOption(renderingContext),
       // Value is always converted to a string by ECharts
       formatter: (value: string) => {
@@ -161,7 +154,7 @@ export const buildDimensionAxis = (
 
         if (axisType === "time") {
           valueToFormat = moment(value).format("YYYY-MM-DDTHH:mm:ss");
-        } else if (isNumeric(column)) {
+        } else if (isNumeric(chartModel.dimensionModel.column)) {
           valueToFormat = parseInt(value, 10);
         }
 
@@ -181,33 +174,25 @@ export const buildDimensionAxis = (
 
 const buildMetricAxis = (
   settings: ComputedVisualizationSettings,
-  column: RemappingHydratedDatasetColumn,
   position: "left" | "right",
   range: AxisRange,
+  extent: Extent,
+  formatter: AxisFormatter,
   renderingContext: RenderingContext,
-  name?: string,
 ): CartesianAxisOption => {
-  const formatter = (value: unknown) => {
-    return renderingContext.formatValue(value, {
-      column,
-      ...(settings.column?.(column) ?? {}),
-    });
-  };
-
-  const isNormalized = settings["stackable.stack_type"] === "normalized";
-
-  const percentageFormatter = (value: unknown) =>
-    renderingContext.formatValue(value, {
-      column: column,
-      number_style: "percent",
-    });
+  const nameGap = getYAxisNameGap(
+    extent,
+    formatter,
+    settings,
+    renderingContext,
+  );
 
   return {
     ...range,
     ...getAxisNameDefaultOption(
       renderingContext,
-      40, // TODO: compute
-      name,
+      nameGap,
+      settings["graph.y_axis.title_text"],
     ),
     splitLine: {
       lineStyle: {
@@ -219,10 +204,7 @@ const buildMetricAxis = (
     axisLabel: {
       ...getTicksDefaultOption(renderingContext),
       // @ts-expect-error TODO: figure out EChart types
-      formatter: (value: string) => {
-        const formatterFn = isNormalized ? percentageFormatter : formatter;
-        return formatterFn(value);
-      },
+      formatter,
     },
   };
 };
@@ -230,31 +212,37 @@ const buildMetricAxis = (
 const buildMetricsAxes = (
   chartModel: CartesianChartModel,
   settings: ComputedVisualizationSettings,
+  axesFormatters: AxesFormatters,
   renderingContext: RenderingContext,
 ): CartesianAxisOption[] => {
   const [leftRange, rightRange] = getAxisRanges(chartModel, settings);
-  const { leftAxisColumn, rightAxisColumn } = chartModel;
+  const [leftExtent, rightExtent] = chartModel.yAxisExtents;
+
+  const hasLeftAxis = axesFormatters.left != null && leftExtent != null;
+  const hasRightAxis = axesFormatters.right != null && rightExtent != null;
 
   return [
-    ...(leftAxisColumn != null
+    ...(hasLeftAxis
       ? [
           buildMetricAxis(
             settings,
-            leftAxisColumn,
             "left",
             leftRange,
+            leftExtent,
+            axesFormatters.left,
             renderingContext,
             settings["graph.y_axis.title_text"],
           ),
         ]
       : []),
-    ...(rightAxisColumn != null
+    ...(hasRightAxis
       ? [
           buildMetricAxis(
             settings,
-            rightAxisColumn,
             "right",
             rightRange,
+            rightExtent,
+            axesFormatters.right,
             renderingContext,
           ),
         ]
@@ -265,14 +253,21 @@ const buildMetricsAxes = (
 export const buildAxes = (
   chartModel: CartesianChartModel,
   settings: ComputedVisualizationSettings,
+  axesFormatters: AxesFormatters,
   renderingContext: RenderingContext,
 ) => {
   return {
     xAxis: buildDimensionAxis(
+      chartModel,
       settings,
-      chartModel.dimensionModel.column,
+      axesFormatters.bottom,
       renderingContext,
     ),
-    yAxis: buildMetricsAxes(chartModel, settings, renderingContext),
+    yAxis: buildMetricsAxes(
+      chartModel,
+      settings,
+      axesFormatters,
+      renderingContext,
+    ),
   };
 };

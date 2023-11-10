@@ -72,3 +72,10 @@ export const getSeriesOrderVisibilitySettings = (
     color: seriesColors[item.key],
   }));
 };
+
+export const getDefaultYAxisTitle = (metricNames: string[]) => {
+  const metricsCount = new Set(metricNames).size;
+  return metricsCount === 1 ? metricNames[0] : null;
+};
+
+export const getIsYAxisLabelEnabledDefault = () => true;

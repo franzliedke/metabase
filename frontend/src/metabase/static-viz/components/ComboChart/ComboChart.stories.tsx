@@ -11,17 +11,37 @@ export default {
 };
 
 const Template: ComponentStory<typeof ComboChart> = args => {
-  return <ComboChart {...args} />;
+  return (
+    <div style={{ border: "1px solid black", display: "inline-block" }}>
+      <ComboChart {...args} />
+    </div>
+  );
+};
+
+const renderingContext = {
+  getColor: color,
+  formatValue: formatStaticValue as any,
+  // FIXME: change measureTextWidth signature
+  measureText: (text, style) => {
+    return measureTextWidth(text, style.size);
+  },
+  fontFamily: "Lato",
+};
+
+export const SplitYAxis = Template.bind({});
+SplitYAxis.args = {
+  rawSeries: questions.autoYSplit as any,
+  dashcardSettings: {},
+  renderingContext,
 };
 
 export const Default = Template.bind({});
 Default.args = {
-  rawSeries: questions.autoYSplit as any,
+  rawSeries: questions.messedUpAxis as any,
   dashcardSettings: {},
-  renderingContext: {
-    getColor: color,
-    formatValue: formatStaticValue as any,
-    measureText: measureTextWidth as any,
-    fontFamily: "Lato",
-  },
+  // width: 400,
+  // height: 300,
+  // width: 800,
+  // height: 600,
+  renderingContext,
 };

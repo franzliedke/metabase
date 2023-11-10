@@ -17,6 +17,8 @@ import {
 import { getCommonStaticVizSettings } from "metabase/static-viz/lib/settings";
 import {
   getDefaultStackingValue,
+  getDefaultYAxisTitle,
+  getIsYAxisLabelEnabledDefault,
   getSeriesOrderVisibilitySettings,
 } from "metabase/visualizations/shared/settings/cartesian-chart";
 import {
@@ -124,6 +126,20 @@ export const computeStaticComboChartSettings = (
       settings,
       seriesModels.map(seriesModel => seriesModel.vizSettingsKey),
     ),
+  );
+
+  fillWithDefaultValue(
+    settings,
+    "graph.y_axis.title_text",
+    getDefaultYAxisTitle(
+      seriesModels.map(seriesModel => seriesModel.column.display_name),
+    ),
+  );
+
+  fillWithDefaultValue(
+    settings,
+    "graph.y_axis.labels_enabled",
+    getIsYAxisLabelEnabledDefault(),
   );
 
   return settings;
