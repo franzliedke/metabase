@@ -5680,7 +5680,7 @@ msgstr "Du kannst auch {0}, wenn es einige Ergebnisse gibt."
 
 #: frontend/src/metabase/query_builder/components/VisualizationResult.jsx:82
 msgid "get an alert"
-msgstr "bekomme einen Alarm"
+msgstr "einen Alarm bekommen"
 
 #: frontend/src/metabase/query_builder/components/VisualizationResult.jsx:77
 msgid "Back to last run"
@@ -13188,7 +13188,7 @@ msgstr "Vorschau anzeigen"
 
 #: frontend/src/metabase/query_builder/components/VisualizationResult.jsx:91
 msgid "Back to previous results"
-msgstr "Zum voherigen Ergebnis"
+msgstr "Zum vorherigen Ergebnis"
 
 #: frontend/src/metabase/query_builder/components/dataref/DetailPane.jsx:21
 msgid "Sample values"
